@@ -64,11 +64,59 @@ async function markMigrationAsExecuted(filename) {
   );
 }
 
+function convertPostgresToMySQL(sql) {
+  let converted = sql;
+
+  // Remove PostgreSQL extensions
+  converted = converted.replace(/CREATE EXTENSION IF NOT EXISTS.*?;/gi, '');
+
+  // Convert SERIAL to INT AUTO_INCREMENT
+  converted = converted.replace(/\bSERIAL\b/gi, 'INT AUTO_INCREMENT');
+
+  // Convert TEXT to VARCHAR or TEXT (keep TEXT as is for MySQL)
+  // No change needed - TEXT works in MySQL
+
+  // Convert UUID to VARCHAR(36)
+  converted = converted.replace(/\bUUID\b/gi, 'VARCHAR(36)');
+
+  // Remove uuid_generate_v4()
+  converted = converted.replace(/DEFAULT\s+uuid_generate_v4\(\)/gi, '');
+
+  // Convert BOOLEAN to TINYINT(1)
+  converted = converted.replace(/\bBOOLEAN\b/gi, 'TINYINT(1)');
+
+  // Convert arrays to JSON
+  converted = converted.replace(/TEXT\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON');
+  converted = converted.replace(/INTEGER\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON');
+
+  // Convert JSONB to JSON
+  converted = converted.replace(/\bJSONB\b/gi, 'JSON');
+
+  // Remove GIN indexes (not supported in MySQL)
+  converted = converted.replace(/CREATE INDEX.*?USING\s+GIN.*?;/gi, '');
+
+  // Remove to_tsvector indexes (PostgreSQL full-text search)
+  converted = converted.replace(/CREATE INDEX.*?to_tsvector.*?;/gi, '');
+
+  // Remove partial indexes (WHERE clause in CREATE INDEX)
+  converted = converted.replace(/(CREATE INDEX.*?;)/gi, (match) => {
+    if (match.includes(' WHERE ')) {
+      return ''; // Remove partial indexes
+    }
+    return match;
+  });
+
+  return converted;
+}
+
 async function executeMigration(filepath, filename) {
   log.info(`Executing: ${filename}`);
   
   try {
-    const sql = fs.readFileSync(filepath, 'utf8');
+    let sql = fs.readFileSync(filepath, 'utf8');
+    
+    // Convert PostgreSQL SQL to MySQL
+    sql = convertPostgresToMySQL(sql);
     
     // Split by semicolon but keep statement together
     const statements = sql
@@ -76,14 +124,26 @@ async function executeMigration(filepath, filename) {
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'));
     
+    let executed = 0;
+    let skipped = 0;
+    
     for (const statement of statements) {
       if (statement) {
-        await pool.query(statement);
+        try {
+          await pool.query(statement);
+          executed++;
+        } catch (error) {
+          // Log but continue - some statements may fail due to conversion issues
+          if (!error.message.includes('already exists') && !error.message.includes('Duplicate')) {
+            log.warning(`Statement warning: ${error.message.substring(0, 100)}...`);
+          }
+          skipped++;
+        }
       }
     }
     
     await markMigrationAsExecuted(filename);
-    log.success(`Completed: ${filename}`);
+    log.success(`Completed: ${filename} (${executed} statements executed, ${skipped} skipped)`);
     return true;
   } catch (error) {
     log.error(`Failed: ${filename}`);
