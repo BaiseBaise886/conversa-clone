@@ -1,42 +1,44 @@
-import pg from 'pg';
+import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const { Pool } = pg;
-
-// Database configuration with better defaults
+// Database configuration with MySQL/XAMPP defaults
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 5432,
+  port: parseInt(process.env.DB_PORT) || 3306,
   database: process.env.DB_NAME || 'conversa_clone',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  waitForConnections: true,
+  connectionLimit: 20,
+  queueLimit: 0,
+  connectTimeout: 5000,
 };
 
 // Create pool with configuration
-export const pool = new Pool(dbConfig);
+export const pool = mysql.createPool(dbConfig);
 
 // Connection event handlers
-pool.on('connect', (client) => {
-  console.log('✅ Database connection established');
+pool.on('connection', (connection) => {
+  console.log('✅ MySQL database connection established');
 });
 
-pool.on('error', (err, client) => {
-  console.error('❌ Unexpected database error:', err);
-  console.log('\n💡 Database Troubleshooting Guide:');
-  console.log('1. Verify PostgreSQL is running:');
-  console.log('   sudo systemctl status postgresql');
-  console.log('   OR');
-  console.log('   brew services list (macOS)');
+pool.on('error', (err) => {
+  console.error('❌ Unexpected MySQL database error:', err);
+  console.log('\n💡 MySQL/XAMPP Troubleshooting Guide:');
+  console.log('1. Verify MySQL is running in XAMPP Control Panel');
+  console.log('   - Start Apache and MySQL services');
   console.log('\n2. Check if database exists:');
-  console.log('   psql -U postgres -l');
+  console.log('   - Open phpMyAdmin: http://localhost/phpmyadmin');
+  console.log('   - Or use MySQL CLI: mysql -u root');
   console.log('\n3. Create database if missing:');
-  console.log('   psql -U postgres -c "CREATE DATABASE conversa_clone;"');
+  console.log('   - In phpMyAdmin, click "New" and create "conversa_clone"');
+  console.log('   - Or use MySQL CLI: CREATE DATABASE conversa_clone;');
   console.log('\n4. Verify credentials in backend/.env file');
+  console.log('   - Default XAMPP user: root');
+  console.log('   - Default XAMPP password: (empty string)');
+  console.log('   - Default port: 3306');
   console.log('\n5. Run migrations:');
   console.log('   cd backend && npm run migrate\n');
 });
@@ -45,19 +47,20 @@ pool.on('error', (err, client) => {
 async function testConnection(retries = 3) {
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await pool.query('SELECT NOW()');
-      console.log('✅ Database connected successfully at:', res.rows[0].now);
+      const [rows] = await pool.query('SELECT NOW() as now');
+      console.log('✅ MySQL database connected successfully at:', rows[0].now);
       console.log(`📊 Database: ${dbConfig.database} on ${dbConfig.host}:${dbConfig.port}`);
       return true;
     } catch (err) {
-      console.error(`❌ Database connection attempt ${i + 1}/${retries} failed:`, err.message);
+      console.error(`❌ MySQL connection attempt ${i + 1}/${retries} failed:`, err.message);
       
       if (i === retries - 1) {
-        console.log('\n💡 Quick Fix:');
-        console.log('1. Ensure PostgreSQL is installed and running');
-        console.log('2. Create the database: createdb conversa_clone');
-        console.log('3. Update backend/.env with correct credentials');
-        console.log('4. Run: cd backend && npm run migrate\n');
+        console.log('\n💡 Quick Fix for XAMPP:');
+        console.log('1. Ensure MySQL is running in XAMPP Control Panel');
+        console.log('2. Create the database in phpMyAdmin: http://localhost/phpmyadmin');
+        console.log('3. Database name: conversa_clone');
+        console.log('4. Update backend/.env with correct credentials (user: root, password: empty)');
+        console.log('5. Run: cd backend && npm run migrate\n');
         return false;
       }
       
@@ -71,7 +74,21 @@ async function testConnection(retries = 3) {
 // Run connection test
 testConnection();
 
-// Query helper function
-export const query = (text, params) => pool.query(text, params);
+// Query helper function that converts PostgreSQL parameterized queries ($1, $2, etc.) to MySQL format (?, ?)
+export const query = async (text, params) => {
+  // Convert PostgreSQL parameter syntax ($1, $2, etc.) to MySQL syntax (?, ?)
+  let mysqlQuery = text;
+  if (params && params.length > 0) {
+    // Replace $1, $2, $3, etc. with ?
+    for (let i = params.length; i >= 1; i--) {
+      mysqlQuery = mysqlQuery.replace(new RegExp(`\\$${i}\\b`, 'g'), '?');
+    }
+  }
+  
+  const [rows] = await pool.query(mysqlQuery, params);
+  
+  // Return result in PostgreSQL-compatible format for backward compatibility
+  return { rows };
+};
 
 export default pool;

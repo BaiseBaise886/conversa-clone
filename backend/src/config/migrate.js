@@ -29,16 +29,16 @@ const log = {
 };
 
 async function createMigrationsTable() {
-  const query = `
+  const createQuery = `
     CREATE TABLE IF NOT EXISTS schema_migrations (
-      id SERIAL PRIMARY KEY,
+      id INT AUTO_INCREMENT PRIMARY KEY,
       filename VARCHAR(255) UNIQUE NOT NULL,
       executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+    )
   `;
   
   try {
-    await pool.query(query);
+    await pool.query(createQuery);
     log.success('Migrations tracking table ready');
   } catch (error) {
     log.error('Failed to create migrations table');
@@ -48,10 +48,10 @@ async function createMigrationsTable() {
 
 async function getExecutedMigrations() {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       'SELECT filename FROM schema_migrations ORDER BY id'
     );
-    return result.rows.map(row => row.filename);
+    return rows.map(row => row.filename);
   } catch (error) {
     return [];
   }
@@ -59,7 +59,7 @@ async function getExecutedMigrations() {
 
 async function markMigrationAsExecuted(filename) {
   await pool.query(
-    'INSERT INTO schema_migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING',
+    'INSERT IGNORE INTO schema_migrations (filename) VALUES (?)',
     [filename]
   );
 }
@@ -155,31 +155,31 @@ async function fixDefaultUser() {
   
   try {
     // Check if default user exists
-    const userCheck = await pool.query(
+    const [userCheck] = await pool.query(
       "SELECT id FROM users WHERE email = 'admin@demo.com'"
     );
     
-    if (userCheck.rows.length === 0) {
+    if (userCheck.length === 0) {
       log.warning('Default user not found, creating...');
       
       const passwordHash = await bcrypt.hash('admin123', 10);
       
       // Create organization first
-      const orgResult = await pool.query(
-        "INSERT INTO organizations (name, plan) VALUES ('Demo Organization', 'pro') RETURNING id"
+      const [orgResult] = await pool.query(
+        "INSERT INTO organizations (name, plan) VALUES ('Demo Organization', 'pro')"
       );
-      const orgId = orgResult.rows[0].id;
+      const orgId = orgResult.insertId;
       
       // Create user
-      const userResult = await pool.query(
-        "INSERT INTO users (email, password_hash, name) VALUES ('admin@demo.com', $1, 'Admin User') RETURNING id",
+      const [userResult] = await pool.query(
+        "INSERT INTO users (email, password_hash, name) VALUES ('admin@demo.com', ?, 'Admin User')",
         [passwordHash]
       );
-      const userId = userResult.rows[0].id;
+      const userId = userResult.insertId;
       
       // Link user to organization
       await pool.query(
-        'INSERT INTO user_organizations (user_id, organization_id, role) VALUES ($1, $2, $3)',
+        'INSERT INTO user_organizations (user_id, organization_id, role) VALUES (?, ?, ?)',
         [userId, orgId, 'admin']
       );
       
@@ -189,7 +189,7 @@ async function fixDefaultUser() {
       
       const passwordHash = await bcrypt.hash('admin123', 10);
       await pool.query(
-        "UPDATE users SET password_hash = $1 WHERE email = 'admin@demo.com'",
+        "UPDATE users SET password_hash = ? WHERE email = 'admin@demo.com'",
         [passwordHash]
       );
       
@@ -209,25 +209,24 @@ async function fixDefaultUser() {
 }
 
 async function refreshMaterializedViews() {
-  log.title('🔄 Refreshing Materialized Views');
+  log.title('🔄 Refreshing Views');
   
   try {
-    // Check if materialized view exists
-    const viewCheck = await pool.query(
-      `SELECT schemaname, matviewname 
-       FROM pg_matviews 
-       WHERE matviewname = 'conversation_list'`
+    // Check if view exists in MySQL
+    const [viewCheck] = await pool.query(
+      `SELECT TABLE_NAME 
+       FROM information_schema.VIEWS 
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'conversation_list'`
     );
     
-    if (viewCheck.rows.length > 0) {
-      log.info('Refreshing conversation_list view...');
-      await pool.query('REFRESH MATERIALIZED VIEW CONCURRENTLY conversation_list');
-      log.success('Materialized views refreshed');
+    if (viewCheck.length > 0) {
+      log.info('Views found in database');
+      log.success('Views are up to date');
     } else {
-      log.info('No materialized views to refresh yet');
+      log.info('No views to refresh yet');
     }
   } catch (error) {
-    log.warning('Could not refresh materialized views (this is normal for new installations)');
+    log.warning('Could not check views (this is normal for new installations)');
   }
 }
 
@@ -235,18 +234,17 @@ async function showDatabaseStats() {
   log.title('📊 Database Statistics');
   
   try {
-    const stats = await pool.query(`
+    const [stats] = await pool.query(`
       SELECT 
         (SELECT COUNT(*) FROM organizations) as organizations,
         (SELECT COUNT(*) FROM users) as users,
         (SELECT COUNT(*) FROM contacts) as contacts,
         (SELECT COUNT(*) FROM flows) as flows,
         (SELECT COUNT(*) FROM messages) as messages,
-        (SELECT COUNT(*) FROM channels) as channels,
-        (SELECT pg_size_pretty(pg_database_size(current_database()))) as db_size
+        (SELECT COUNT(*) FROM channels) as channels
     `);
     
-    const data = stats.rows[0];
+    const data = stats[0];
     
     console.log(`  Organizations: ${data.organizations}`);
     console.log(`  Users:         ${data.users}`);
@@ -254,11 +252,10 @@ async function showDatabaseStats() {
     console.log(`  Flows:         ${data.flows}`);
     console.log(`  Messages:      ${data.messages}`);
     console.log(`  Channels:      ${data.channels}`);
-    console.log(`  Database Size: ${data.db_size}`);
     console.log('');
     
   } catch (error) {
-    log.warning('Could not fetch database statistics');
+    log.warning('Could not fetch database statistics (tables may not exist yet)');
   }
 }
 
