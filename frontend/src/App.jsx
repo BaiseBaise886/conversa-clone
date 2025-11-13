@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Login from './components/Login';
+import Setup from './components/Setup';
 import Dashboard from './components/Dashboard';
 import FlowBuilder from './components/FlowBuilder';
 import LiveChat from './components/LiveChat';
@@ -11,7 +12,7 @@ import MediaLibrary from './components/MediaLibrary';
 import FlowAnalytics from './components/FlowAnalytics';
 import ABTestManager from './components/ABTestManager';
 import MultiChatInterface from './components/MultiChatInterface';
-import { getToken, clearAuth, connectWebSocket, disconnectWebSocket } from './store';
+import { getToken, clearAuth, connectWebSocket, disconnectWebSocket, API_URL } from './store';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -19,10 +20,16 @@ function App() {
   const [user, setUser] = useState(null);
   const [organization, setOrganization] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+
+  useEffect(() => {
+    checkSetupStatus();
+  }, []);
 
   useEffect(() => {
     const token = getToken();
-    if (token) {
+    if (token && !needsSetup) {
       setIsAuthenticated(true);
       const userData = JSON.parse(localStorage.getItem('user') || '{}');
       const orgData = JSON.parse(localStorage.getItem('organization') || '{}');
@@ -36,7 +43,21 @@ function App() {
     return () => {
       disconnectWebSocket();
     };
-  }, []);
+  }, [needsSetup]);
+
+  const checkSetupStatus = async () => {
+    try {
+      const response = await fetch(`${API_URL}/setup/status`);
+      const data = await response.json();
+      setNeedsSetup(data.setupNeeded);
+    } catch (error) {
+      console.error('Failed to check setup status:', error);
+      // If we can't check setup status, assume setup is needed
+      setNeedsSetup(true);
+    } finally {
+      setCheckingSetup(false);
+    }
+  };
 
   const handleLogin = () => {
     setIsAuthenticated(true);
@@ -55,6 +76,40 @@ function App() {
     disconnectWebSocket();
     setCurrentPage('dashboard');
   };
+
+  const handleSetupComplete = () => {
+    setNeedsSetup(false);
+    setCheckingSetup(false);
+  };
+
+  // Show loading while checking setup status
+  if (checkingSetup) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      }}>
+        <div style={{
+          textAlign: 'center',
+          color: 'white'
+        }}>
+          <div style={{
+            fontSize: '48px',
+            marginBottom: '20px'
+          }}>⚙️</div>
+          <div style={{ fontSize: '24px' }}>Loading Conversa Clone...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show setup page if setup is needed
+  if (needsSetup) {
+    return <Setup onSetupComplete={handleSetupComplete} />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
