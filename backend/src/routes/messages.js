@@ -207,4 +207,39 @@ router.post('/bulk-send', authenticate, asyncHandler(async (req, res) => {
          WHERE c.id = $1 AND c.organization_id = $2`,
         [contactId, req.organizationId]
       );
-
+      
+      if (contactResult.rows.length === 0) {
+        errors.push({ contactId, error: 'Contact not found' });
+        continue;
+      }
+      
+      const contact = contactResult.rows[0];
+      
+      if (!contact.channel_id) {
+        errors.push({ contactId, error: 'No connected channel' });
+        continue;
+      }
+      
+      await antiBanService.queueMessage(
+        contact.channel_id,
+        contactId,
+        content,
+        { sentBy: req.user.id }
+      );
+      
+      const msgResult = await query(
+        `INSERT INTO messages (contact_id, channel_id, content, type)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [contactId, contact.channel_id, content, 'outbound_agent']
+      );
+      
+      sent.push(msgResult.rows[0]);
+    } catch (error) {
+      errors.push({ contactId, error: error.message });
+    }
+  }
+  
+  res.json({ sent, errors });
+}));
+
+export default router;
