@@ -116,6 +116,7 @@ async function executeMigration(filepath, filename) {
     let sql = fs.readFileSync(filepath, 'utf8');
     
     // Convert PostgreSQL SQL to MySQL
+    log.info('Converting PostgreSQL syntax to MySQL...');
     sql = convertPostgresToMySQL(sql);
     
     // Split by semicolon but keep statement together
@@ -124,23 +125,34 @@ async function executeMigration(filepath, filename) {
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'));
     
+    log.info(`Processing ${statements.length} SQL statements...`);
+    
     let executed = 0;
     let skipped = 0;
     
-    for (const statement of statements) {
+    for (let i = 0; i < statements.length; i++) {
+      const statement = statements[i];
       if (statement) {
         try {
+          // Show progress every 10 statements
+          if (i % 10 === 0 && i > 0) {
+            process.stdout.write(`  Progress: ${i}/${statements.length} statements...\r`);
+          }
+          
           await pool.query(statement);
           executed++;
         } catch (error) {
           // Log but continue - some statements may fail due to conversion issues
           if (!error.message.includes('already exists') && !error.message.includes('Duplicate')) {
-            log.warning(`Statement warning: ${error.message.substring(0, 100)}...`);
+            log.warning(`Statement ${i + 1} warning: ${error.message.substring(0, 80)}...`);
           }
           skipped++;
         }
       }
     }
+    
+    // Clear progress line
+    process.stdout.write('  ' + ' '.repeat(50) + '\r');
     
     await markMigrationAsExecuted(filename);
     log.success(`Completed: ${filename} (${executed} statements executed, ${skipped} skipped)`);
