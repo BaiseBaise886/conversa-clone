@@ -140,11 +140,11 @@ class AnalyticsService {
           completed,
           dropped,
           CASE 
-            WHEN reached > 0 THEN (dropped::DECIMAL / reached::DECIMAL)
+            WHEN reached > 0 THEN (dropped / reached)
             ELSE 0 
           END as drop_off_rate,
           CASE 
-            WHEN reached > 0 THEN ((reached - completed)::DECIMAL / reached::DECIMAL)
+            WHEN reached > 0 THEN ((reached - completed) / reached)
             ELSE 0
           END as incomplete_rate
         FROM node_stats
@@ -243,13 +243,13 @@ class AnalyticsService {
         `SELECT 
           DATE(started_at) as date,
           COUNT(*) as total_starts,
-          COUNT(*) FILTER (WHERE status = 'completed') as completions,
-          COUNT(*) FILTER (WHERE status = 'abandoned') as abandons,
-          AVG(total_time_seconds) FILTER (WHERE status = 'completed') as avg_completion_time,
-          AVG(conversion_value) FILTER (WHERE conversion_value IS NOT NULL) as avg_conversion_value
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completions,
+          SUM(CASE WHEN status = 'abandoned' THEN 1 ELSE 0 END) as abandons,
+          AVG(CASE WHEN status = 'completed' THEN total_time_seconds END) as avg_completion_time,
+          AVG(CASE WHEN conversion_value IS NOT NULL THEN conversion_value END) as avg_conversion_value
          FROM flow_journeys
          WHERE flow_id = $1 
-         AND started_at >= NOW() - INTERVAL '${days} days'
+         AND started_at >= NOW() - INTERVAL ${days} DAY
          GROUP BY DATE(started_at)
          ORDER BY date DESC`,
         [flowId]
@@ -288,11 +288,11 @@ class AnalyticsService {
           `WITH journey_metrics AS (
             SELECT 
               COUNT(*) as total_starts,
-              COUNT(*) FILTER (WHERE status = 'completed') as completions,
-              COUNT(*) FILTER (WHERE status = 'abandoned') as drop_offs,
-              AVG(total_time_seconds) FILTER (WHERE status = 'completed') as avg_time,
-              SUM(conversion_value) FILTER (WHERE conversion_value IS NOT NULL) as total_revenue,
-              AVG(conversion_value) FILTER (WHERE conversion_value IS NOT NULL) as avg_revenue
+              SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completions,
+              SUM(CASE WHEN status = 'abandoned' THEN 1 ELSE 0 END) as drop_offs,
+              AVG(CASE WHEN status = 'completed' THEN total_time_seconds END) as avg_time,
+              SUM(CASE WHEN conversion_value IS NOT NULL THEN conversion_value ELSE 0 END) as total_revenue,
+              AVG(CASE WHEN conversion_value IS NOT NULL THEN conversion_value END) as avg_revenue
             FROM flow_journeys
             WHERE flow_id = $1 
             AND variant_id = $2
@@ -306,7 +306,7 @@ class AnalyticsService {
               SELECT 
                 contact_id,
                 COUNT(*) as msg_count,
-                COUNT(*) FILTER (WHERE action = 'completed')::DECIMAL / NULLIF(COUNT(*), 0) as response_rate
+                SUM(CASE WHEN action = 'completed' THEN 1.0 ELSE 0 END) / NULLIF(COUNT(*), 0) as response_rate
               FROM node_analytics
               WHERE flow_id = $1
               AND variant_id = $2
@@ -320,7 +320,7 @@ class AnalyticsService {
             jm.drop_offs,
             jm.avg_time,
             CASE WHEN jm.total_starts > 0 
-              THEN jm.completions::DECIMAL / jm.total_starts::DECIMAL 
+              THEN jm.completions / jm.total_starts 
               ELSE 0 
             END as conversion_rate,
             jm.total_revenue,
@@ -394,7 +394,7 @@ class AnalyticsService {
           SUM(total_revenue) as total_revenue
          FROM ab_test_results
          WHERE flow_id = $1
-         AND metric_date >= CURRENT_DATE - INTERVAL '30 days'
+         AND metric_date >= CURRENT_DATE - INTERVAL 30 DAY
          GROUP BY variant_id
          HAVING SUM(total_starts) >= $2
          ORDER BY avg_conversion_rate DESC`,

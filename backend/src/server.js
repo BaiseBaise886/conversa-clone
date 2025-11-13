@@ -30,6 +30,7 @@ import aiRoutes from './routes/ai.js';
 import marketingRoutes from './routes/marketing.js';
 import analyticsRoutes from './routes/analytics.js';
 import conversationRoutes from './routes/conversations.js';
+import setupRoutes from './routes/setup.js';
 
 // Import WebSocket handler
 import initializeWebSocket from './websocket/socketHandler.js';
@@ -113,6 +114,9 @@ app.get('/', (req, res) => {
     repository: 'https://github.com/BaiseBaise886/conversa-clone'
   });
 });
+
+// Setup routes (no rate limiting or auth required for first-run setup)
+app.use('/api/setup', setupRoutes);
 
 // Apply rate limiting to all API routes
 app.use('/api', apiLimiter);

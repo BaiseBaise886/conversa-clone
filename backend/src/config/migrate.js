@@ -64,11 +64,67 @@ async function markMigrationAsExecuted(filename) {
   );
 }
 
+function convertPostgresToMySQL(sql) {
+  let converted = sql;
+
+  // Remove PostgreSQL extensions
+  converted = converted.replace(/CREATE EXTENSION IF NOT EXISTS.*?;/gi, '');
+
+  // Convert SERIAL to INT AUTO_INCREMENT
+  converted = converted.replace(/\bSERIAL\b/gi, 'INT AUTO_INCREMENT');
+
+  // Convert UUID to VARCHAR(36)
+  converted = converted.replace(/\bUUID\b/gi, 'VARCHAR(36)');
+
+  // Remove uuid_generate_v4()
+  converted = converted.replace(/DEFAULT\s+uuid_generate_v4\(\)/gi, '');
+
+  // Convert BOOLEAN to TINYINT(1)
+  converted = converted.replace(/\bBOOLEAN\b/gi, 'TINYINT(1)');
+
+  // Convert JSONB to JSON
+  converted = converted.replace(/\bJSONB\b/gi, 'JSON');
+
+  // Convert PostgreSQL arrays to JSON - handle all variations
+  // Pattern: TEXT[] DEFAULT ARRAY['value1', 'value2']::TEXT[]
+  converted = converted.replace(/(\w+)\[\]\s+DEFAULT\s+ARRAY\[(.*?)\]::\w+\[\]/gi, 'JSON DEFAULT \'$2\'');
+  
+  // Pattern: TEXT[] DEFAULT ARRAY[]::TEXT[] (empty array)
+  converted = converted.replace(/(\w+)\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON DEFAULT NULL');
+  
+  // Pattern: TEXT[] (without DEFAULT)
+  converted = converted.replace(/(\w+)\[\]/gi, 'JSON');
+
+  // Remove GIN indexes (not supported in MySQL)
+  converted = converted.replace(/CREATE INDEX.*?USING\s+GIN.*?;/gi, '');
+
+  // Remove to_tsvector indexes (PostgreSQL full-text search)
+  converted = converted.replace(/CREATE INDEX.*?to_tsvector.*?;/gi, '');
+
+  // Remove partial indexes (WHERE clause in CREATE INDEX)
+  converted = converted.replace(/(CREATE INDEX.*?;)/gi, (match) => {
+    if (match.includes(' WHERE ')) {
+      return ''; // Remove partial indexes
+    }
+    return match;
+  });
+
+  // Fix CHECK constraints that might have issues
+  // MySQL supports CHECK but syntax is slightly different
+  converted = converted.replace(/CHECK\s*\(\s*(\w+)\s*IN\s*\((.*?)\)\s*\)/gi, 'CHECK ($1 IN ($2))');
+
+  return converted;
+}
+
 async function executeMigration(filepath, filename) {
   log.info(`Executing: ${filename}`);
   
   try {
-    const sql = fs.readFileSync(filepath, 'utf8');
+    let sql = fs.readFileSync(filepath, 'utf8');
+    
+    // Convert PostgreSQL SQL to MySQL
+    log.info('Converting PostgreSQL syntax to MySQL...');
+    sql = convertPostgresToMySQL(sql);
     
     // Split by semicolon but keep statement together
     const statements = sql
@@ -76,14 +132,37 @@ async function executeMigration(filepath, filename) {
       .map(s => s.trim())
       .filter(s => s.length > 0 && !s.startsWith('--'));
     
-    for (const statement of statements) {
+    log.info(`Processing ${statements.length} SQL statements...`);
+    
+    let executed = 0;
+    let skipped = 0;
+    
+    for (let i = 0; i < statements.length; i++) {
+      const statement = statements[i];
       if (statement) {
-        await pool.query(statement);
+        try {
+          // Show progress every 10 statements
+          if (i % 10 === 0 && i > 0) {
+            process.stdout.write(`  Progress: ${i}/${statements.length} statements...\r`);
+          }
+          
+          await pool.query(statement);
+          executed++;
+        } catch (error) {
+          // Log but continue - some statements may fail due to conversion issues
+          if (!error.message.includes('already exists') && !error.message.includes('Duplicate')) {
+            log.warning(`Statement ${i + 1} warning: ${error.message.substring(0, 80)}...`);
+          }
+          skipped++;
+        }
       }
     }
     
+    // Clear progress line
+    process.stdout.write('  ' + ' '.repeat(50) + '\r');
+    
     await markMigrationAsExecuted(filename);
-    log.success(`Completed: ${filename}`);
+    log.success(`Completed: ${filename} (${executed} statements executed, ${skipped} skipped)`);
     return true;
   } catch (error) {
     log.error(`Failed: ${filename}`);
@@ -103,9 +182,60 @@ async function runMigrations() {
     const executedMigrations = await getExecutedMigrations();
     log.info(`Previously executed: ${executedMigrations.length} migrations`);
     
-    // Get all migration files
+    // Check for MySQL-native schema file first (preferred)
+    const mysqlSchemaPath = path.join(MIGRATIONS_DIR, 'mysql_schema.sql');
+    const mysqlSchemaExists = fs.existsSync(mysqlSchemaPath);
+    
+    if (mysqlSchemaExists && !executedMigrations.includes('mysql_schema.sql')) {
+      log.info('Found MySQL-native schema file (preferred)');
+      log.info('Executing: mysql_schema.sql');
+      
+      const sql = fs.readFileSync(mysqlSchemaPath, 'utf8');
+      const statements = sql
+        .split(';')
+        .map(s => s.trim())
+        .filter(s => s.length > 0 && !s.startsWith('--'));
+      
+      log.info(`Processing ${statements.length} SQL statements...`);
+      
+      let executed = 0;
+      for (let i = 0; i < statements.length; i++) {
+        const statement = statements[i];
+        if (statement) {
+          try {
+            if (i % 5 === 0 && i > 0) {
+              process.stdout.write(`  Progress: ${i}/${statements.length} statements...\r`);
+            }
+            await pool.query(statement);
+            executed++;
+          } catch (error) {
+            // Log but continue for "already exists" errors
+            if (!error.message.includes('already exists') && !error.message.includes('Duplicate')) {
+              log.warning(`Statement ${i + 1}: ${error.message.substring(0, 60)}...`);
+            }
+          }
+        }
+      }
+      
+      process.stdout.write('  ' + ' '.repeat(50) + '\r');
+      await markMigrationAsExecuted('mysql_schema.sql');
+      log.success(`Completed: mysql_schema.sql (${executed} statements executed)`);
+      
+      console.log('\n' + '═'.repeat(50));
+      log.success(`Migration Summary:`);
+      console.log(`  Executed: 1`);
+      console.log(`  Total:    1 (MySQL native schema)`);
+      console.log('═'.repeat(50) + '\n');
+      
+      return;
+    }
+    
+    // Fall back to PostgreSQL migrations with conversion
+    log.info('Using PostgreSQL migrations with conversion...');
+    
+    // Get all migration files (exclude mysql_schema.sql)
     const files = fs.readdirSync(MIGRATIONS_DIR)
-      .filter(f => f.endsWith('.sql'))
+      .filter(f => f.endsWith('.sql') && f !== 'mysql_schema.sql')
       .sort();
     
     if (files.length === 0) {

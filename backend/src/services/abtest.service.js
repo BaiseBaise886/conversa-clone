@@ -117,7 +117,7 @@ class ABTestService {
          FROM flow_variants fv
          LEFT JOIN ab_test_results abr ON fv.id = abr.variant_id
          WHERE fv.flow_id = $1
-         AND (abr.metric_date IS NULL OR abr.metric_date >= CURRENT_DATE - INTERVAL '${days} days')
+         AND (abr.metric_date IS NULL OR abr.metric_date >= CURRENT_DATE - INTERVAL ${days} DAY)
          GROUP BY fv.id, fv.variant_name, fv.traffic_percentage
          ORDER BY avg_conversion_rate DESC NULLS LAST`,
         [flowId]
@@ -216,16 +216,16 @@ class ABTestService {
         `SELECT 
           fv.variant_name,
           COUNT(DISTINCT fj.contact_id) as total_users,
-          COUNT(DISTINCT fj.contact_id) FILTER (WHERE fj.status = 'completed') as completed,
-          AVG(fj.total_time_seconds) FILTER (WHERE fj.status = 'completed') as avg_time,
+          COUNT(DISTINCT CASE WHEN fj.status = 'completed' THEN fj.contact_id END) as completed,
+          AVG(CASE WHEN fj.status = 'completed' THEN fj.total_time_seconds END) as avg_time,
           SUM(fj.conversion_value) as revenue,
-          ROUND((COUNT(DISTINCT fj.contact_id) FILTER (WHERE fj.status = 'completed')::DECIMAL / 
-                 NULLIF(COUNT(DISTINCT fj.contact_id), 0) * 100)::numeric, 2) as conversion_rate
+          ROUND((COUNT(DISTINCT CASE WHEN fj.status = 'completed' THEN fj.contact_id END) / 
+                 NULLIF(COUNT(DISTINCT fj.contact_id), 0) * 100), 2) as conversion_rate
          FROM flow_variants fv
          LEFT JOIN flow_journeys fj ON fv.id = fj.variant_id
          WHERE fv.flow_id = $1
          GROUP BY fv.variant_name
-         ORDER BY conversion_rate DESC NULLS LAST`,
+         ORDER BY conversion_rate DESC`,
         [flowId]
       );
       

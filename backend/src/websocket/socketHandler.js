@@ -112,16 +112,9 @@ export function initializeWebSocket(server) {
       
       socket.join(`chat-${contactId}`);
       
-      // Track active chats
-      await query(
-        `UPDATE user_presence 
-         SET active_chats = array_append(
-           COALESCE(active_chats, ARRAY[]::INTEGER[]), 
-           $1::INTEGER
-         )
-         WHERE user_id = $2 AND NOT ($1 = ANY(COALESCE(active_chats, ARRAY[]::INTEGER[])))`,
-        [contactId, socket.user.id]
-      );
+      // Note: Active chats tracking removed for MySQL compatibility
+      // The active_chats array field requires PostgreSQL-specific array operations
+      // Real-time presence is still tracked via socket connections
       
       logger.info(`User ${socket.user.id} joined chat ${contactId}`);
       
@@ -144,12 +137,7 @@ export function initializeWebSocket(server) {
       
       socket.leave(`chat-${contactId}`);
       
-      await query(
-        `UPDATE user_presence 
-         SET active_chats = array_remove(active_chats, $1)
-         WHERE user_id = $2`,
-        [contactId, socket.user.id]
-      );
+      // Note: Active chats tracking removed for MySQL compatibility
       
       logger.info(`User ${socket.user.id} left chat ${contactId}`);
       
@@ -445,9 +433,9 @@ export function initializeWebSocket(server) {
           `SELECT 
              COUNT(DISTINCT c.id) as total_contacts,
              COUNT(DISTINCT m.id) as total_messages,
-             COUNT(DISTINCT m.id) FILTER (WHERE m.created_at >= NOW() - INTERVAL '24 hours') as messages_24h,
-             COUNT(DISTINCT lcs.id) FILTER (WHERE lcs.status = 'pending') as pending_chats,
-             COUNT(DISTINCT lcs.id) FILTER (WHERE lcs.status = 'active') as active_chats
+             COUNT(DISTINCT CASE WHEN m.created_at >= NOW() - INTERVAL 24 HOUR THEN m.id END) as messages_24h,
+             COUNT(DISTINCT CASE WHEN lcs.status = 'pending' THEN lcs.id END) as pending_chats,
+             COUNT(DISTINCT CASE WHEN lcs.status = 'active' THEN lcs.id END) as active_chats
            FROM contacts c
            LEFT JOIN messages m ON c.id = m.contact_id
            LEFT JOIN live_chat_sessions lcs ON c.id = lcs.contact_id
@@ -506,20 +494,15 @@ export function initializeWebSocket(server) {
   });
 
   // Refresh conversation list periodically
-  setInterval(async () => {
-    try {
-      await query('SELECT refresh_conversation_list()');
-    } catch (error) {
-      logger.error('Error refreshing conversation list:', error);
-    }
-  }, 30000); // Every 30 seconds
+  // Note: Stored procedure refresh_conversation_list() removed as it's not required for MySQL
+  // The conversation list is updated in real-time via WebSocket events
 
   // Clean up stale typing indicators
   setInterval(async () => {
     try {
       await query(
         `DELETE FROM typing_indicators 
-         WHERE updated_at < NOW() - INTERVAL '10 seconds'`
+         WHERE updated_at < NOW() - INTERVAL 10 SECOND`
       );
     } catch (error) {
       logger.error('Error cleaning typing indicators:', error);
@@ -533,7 +516,7 @@ export function initializeWebSocket(server) {
         `UPDATE user_presence 
          SET status = 'offline' 
          WHERE status = 'online' 
-         AND last_seen < NOW() - INTERVAL '5 minutes'`
+         AND last_seen < NOW() - INTERVAL 5 MINUTE`
       );
     } catch (error) {
       logger.error('Error cleaning user presence:', error);
