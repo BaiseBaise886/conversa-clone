@@ -84,7 +84,9 @@ class ConversationService {
          LEFT JOIN contacts c ON cl.contact_id = c.id
          LEFT JOIN users u ON cl.assigned_user_id = u.id
          ${whereClause}
-         ORDER BY c.pinned DESC, cl.last_message_at DESC NULLS LAST
+         ORDER BY c.pinned DESC, 
+                  CASE WHEN cl.last_message_at IS NULL THEN 1 ELSE 0 END,
+                  cl.last_message_at DESC
          LIMIT $${paramCount + 1} OFFSET $${paramCount + 2}`,
         [...params, limit, offset]
       );

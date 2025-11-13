@@ -142,7 +142,7 @@ class AntiBanService {
             `UPDATE message_queue 
              SET retry_count = retry_count + 1,
                  status = CASE WHEN retry_count >= 3 THEN 'failed' ELSE 'pending' END,
-                 scheduled_at = CASE WHEN retry_count < 3 THEN NOW() + INTERVAL '5 minutes' ELSE scheduled_at END
+                 scheduled_at = CASE WHEN retry_count < 3 THEN NOW() + INTERVAL 5 MINUTE ELSE scheduled_at END
              WHERE id = $1`,
             [msg.id]
           );
@@ -163,7 +163,7 @@ class AntiBanService {
     
     const result = await query(
       `SELECT 
-         COUNT(*) FILTER (WHERE created_at >= $2) as today_count,
+         SUM(CASE WHEN created_at >= $2 THEN 1 ELSE 0 END) as today_count,
          COUNT(*) as total_count
        FROM messages 
        WHERE channel_id = $1 AND type LIKE 'outbound%'`,
@@ -183,12 +183,12 @@ class AntiBanService {
   async getQueueStats() {
     const result = await query(
       `SELECT 
-         COUNT(*) FILTER (WHERE status = 'pending') as pending,
-         COUNT(*) FILTER (WHERE status = 'sent') as sent,
-         COUNT(*) FILTER (WHERE status = 'failed') as failed,
-         AVG(EXTRACT(EPOCH FROM (sent_at - scheduled_at))) FILTER (WHERE status = 'sent') as avg_delay
+         SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+         SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+         SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed,
+         AVG(CASE WHEN status = 'sent' THEN TIMESTAMPDIFF(SECOND, scheduled_at, sent_at) END) as avg_delay
        FROM message_queue
-       WHERE created_at >= NOW() - INTERVAL '24 hours'`
+       WHERE created_at >= NOW() - INTERVAL 24 HOUR`
     );
     
     return result.rows[0];
@@ -201,12 +201,13 @@ class AntiBanService {
     const result = await query(
       `DELETE FROM message_queue 
        WHERE status IN ('sent', 'failed') 
-       AND created_at < NOW() - INTERVAL '7 days'
-       RETURNING id`
+       AND created_at < NOW() - INTERVAL 7 DAY`
     );
     
-    logger.info(`Cleaned up ${result.rows.length} old messages from queue`);
-    return result.rows.length;
+    // MySQL DELETE returns affectedRows in the result object
+    const deletedCount = result.rows.affectedRows || 0;
+    logger.info(`Cleaned up ${deletedCount} old messages from queue`);
+    return deletedCount;
   }
 }
 

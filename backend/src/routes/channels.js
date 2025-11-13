@@ -143,9 +143,9 @@ router.get('/:id/stats', authenticate, asyncHandler(async (req, res) => {
   const result = await query(
     `SELECT 
        COUNT(*) as total_messages,
-       COUNT(*) FILTER (WHERE type = 'inbound') as received,
-       COUNT(*) FILTER (WHERE type LIKE 'outbound%') as sent,
-       COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '24 hours') as last_24h
+       SUM(CASE WHEN type = 'inbound' THEN 1 ELSE 0 END) as received,
+       SUM(CASE WHEN type LIKE 'outbound%' THEN 1 ELSE 0 END) as sent,
+       SUM(CASE WHEN created_at >= NOW() - INTERVAL 24 HOUR THEN 1 ELSE 0 END) as last_24h
      FROM messages
      WHERE channel_id = $1`,
     [channelId]

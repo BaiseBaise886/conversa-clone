@@ -148,9 +148,9 @@ router.get('/stats', authenticate, asyncHandler(async (req, res) => {
     `SELECT 
        COUNT(DISTINCT m.contact_id) as total_conversations,
        COUNT(*) as total_messages,
-       COUNT(*) FILTER (WHERE m.type = 'inbound') as inbound_messages,
-       COUNT(*) FILTER (WHERE m.type LIKE 'outbound%') as outbound_messages,
-       COUNT(*) FILTER (WHERE m.created_at >= NOW() - INTERVAL '24 hours') as last_24h
+       SUM(CASE WHEN m.type = 'inbound' THEN 1 ELSE 0 END) as inbound_messages,
+       SUM(CASE WHEN m.type LIKE 'outbound%' THEN 1 ELSE 0 END) as outbound_messages,
+       SUM(CASE WHEN m.created_at >= NOW() - INTERVAL 24 HOUR THEN 1 ELSE 0 END) as last_24h
      FROM messages m
      JOIN contacts c ON m.contact_id = c.id
      WHERE c.organization_id = $1`,

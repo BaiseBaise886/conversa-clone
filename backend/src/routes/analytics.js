@@ -345,9 +345,9 @@ router.get('/dashboard', authenticate, asyncHandler(async (req, res) => {
        f.id,
        f.name,
        COUNT(DISTINCT fj.contact_id) as users,
-       COUNT(DISTINCT fj.contact_id) FILTER (WHERE fj.status = 'completed') as completed,
-       ROUND((COUNT(DISTINCT fj.contact_id) FILTER (WHERE fj.status = 'completed')::DECIMAL / 
-              NULLIF(COUNT(DISTINCT fj.contact_id), 0) * 100)::numeric, 2) as conversion_rate
+       COUNT(DISTINCT CASE WHEN fj.status = 'completed' THEN fj.contact_id END) as completed,
+       ROUND((COUNT(DISTINCT CASE WHEN fj.status = 'completed' THEN fj.contact_id END) / 
+              NULLIF(COUNT(DISTINCT fj.contact_id), 0) * 100), 2) as conversion_rate
      FROM flows f
      LEFT JOIN flow_journeys fj ON f.id = fj.flow_id
      WHERE f.organization_id = $1 AND f.is_active = true
