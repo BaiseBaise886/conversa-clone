@@ -265,9 +265,59 @@ class SetupService {
       // Get executed migrations
       const executedMigrations = await this.getExecutedMigrations(pool);
       
-      // Get all migration files
+      // Check for MySQL-native schema file first (preferred)
+      const mysqlSchemaPath = path.join(MIGRATIONS_DIR, 'mysql_schema.sql');
+      const mysqlSchemaExists = fs.existsSync(mysqlSchemaPath);
+      
+      if (mysqlSchemaExists && !executedMigrations.includes('mysql_schema.sql')) {
+        // Use native MySQL schema (preferred approach)
+        logger.info('Using MySQL-native schema file');
+        
+        const sql = fs.readFileSync(mysqlSchemaPath, 'utf8');
+        const statements = sql
+          .split(';')
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && !s.startsWith('--'));
+        
+        let executed = 0;
+        let failed = 0;
+        
+        for (const statement of statements) {
+          if (statement) {
+            try {
+              await pool.query(statement);
+              executed++;
+            } catch (error) {
+              // Log but continue for "already exists" errors
+              if (!error.message.includes('already exists') && !error.message.includes('Duplicate')) {
+                logger.warn(`Statement warning: ${error.message.substring(0, 80)}`);
+                failed++;
+              }
+            }
+          }
+        }
+        
+        await this.markMigrationAsExecuted(pool, 'mysql_schema.sql');
+        
+        return { 
+          success: true, 
+          executed,
+          skipped: 0,
+          failed,
+          total: 1,
+          results: [{
+            file: 'mysql_schema.sql',
+            status: 'success',
+            message: `Executed ${executed} statements (${failed} warnings)`
+          }]
+        };
+      }
+      
+      // Fall back to PostgreSQL migrations with conversion
+      logger.info('Using PostgreSQL migrations with conversion...');
+      
       const files = fs.readdirSync(MIGRATIONS_DIR)
-        .filter(f => f.endsWith('.sql'))
+        .filter(f => f.endsWith('.sql') && f !== 'mysql_schema.sql')
         .sort();
       
       if (files.length === 0) {
