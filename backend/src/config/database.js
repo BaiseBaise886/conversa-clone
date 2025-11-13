@@ -14,8 +14,6 @@ const dbConfig = {
   connectionLimit: 20,
   queueLimit: 0,
   connectTimeout: 10000,
-  acquireTimeout: 10000,
-  timeout: 60000, // 60 second query timeout for long migrations
 };
 
 // Create pool with configuration
