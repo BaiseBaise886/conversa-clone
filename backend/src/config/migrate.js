@@ -73,9 +73,6 @@ function convertPostgresToMySQL(sql) {
   // Convert SERIAL to INT AUTO_INCREMENT
   converted = converted.replace(/\bSERIAL\b/gi, 'INT AUTO_INCREMENT');
 
-  // Convert TEXT to VARCHAR or TEXT (keep TEXT as is for MySQL)
-  // No change needed - TEXT works in MySQL
-
   // Convert UUID to VARCHAR(36)
   converted = converted.replace(/\bUUID\b/gi, 'VARCHAR(36)');
 
@@ -85,12 +82,18 @@ function convertPostgresToMySQL(sql) {
   // Convert BOOLEAN to TINYINT(1)
   converted = converted.replace(/\bBOOLEAN\b/gi, 'TINYINT(1)');
 
-  // Convert arrays to JSON
-  converted = converted.replace(/TEXT\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON');
-  converted = converted.replace(/INTEGER\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON');
-
   // Convert JSONB to JSON
   converted = converted.replace(/\bJSONB\b/gi, 'JSON');
+
+  // Convert PostgreSQL arrays to JSON - handle all variations
+  // Pattern: TEXT[] DEFAULT ARRAY['value1', 'value2']::TEXT[]
+  converted = converted.replace(/(\w+)\[\]\s+DEFAULT\s+ARRAY\[(.*?)\]::\w+\[\]/gi, 'JSON DEFAULT \'$2\'');
+  
+  // Pattern: TEXT[] DEFAULT ARRAY[]::TEXT[] (empty array)
+  converted = converted.replace(/(\w+)\[\]\s+DEFAULT\s+ARRAY\[\]::\w+\[\]/gi, 'JSON DEFAULT NULL');
+  
+  // Pattern: TEXT[] (without DEFAULT)
+  converted = converted.replace(/(\w+)\[\]/gi, 'JSON');
 
   // Remove GIN indexes (not supported in MySQL)
   converted = converted.replace(/CREATE INDEX.*?USING\s+GIN.*?;/gi, '');
@@ -105,6 +108,10 @@ function convertPostgresToMySQL(sql) {
     }
     return match;
   });
+
+  // Fix CHECK constraints that might have issues
+  // MySQL supports CHECK but syntax is slightly different
+  converted = converted.replace(/CHECK\s*\(\s*(\w+)\s*IN\s*\((.*?)\)\s*\)/gi, 'CHECK ($1 IN ($2))');
 
   return converted;
 }
