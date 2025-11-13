@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Primary Meta Tags -->
+    <title>Conversa Clone - AI-Powered Marketing Automation Platform</title>
+    <meta name="title" content="Conversa Clone - AI-Powered Marketing Automation Platform" />
+    <meta name="description" content="Complete WhatsApp & Instagram marketing automation platform with AI-powered conversations, visual flow builder, A/B testing, and comprehensive analytics." />
+    <meta name="keywords" content="whatsapp automation, marketing automation, ai chatbot, conversa, instagram automation, flow builder, a/b testing, analytics" />
+    <meta name="author" content="BaiseBaise886" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://conversa-clone.com/" />
+    <meta property="og:title" content="Conversa Clone - AI-Powered Marketing Automation" />
+    <meta property="og:description" content="Complete marketing automation platform with AI flows, multi-chat interface, and advanced analytics." />
+    <meta property="og:image" content="/og-image.png" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://conversa-clone.com/" />
+    <meta property="twitter:title" content="Conversa Clone - AI-Powered Marketing Automation" />
+    <meta property="twitter:description" content="Complete marketing automation platform with AI flows, multi-chat interface, and advanced analytics." />
+    <meta property="twitter:image" content="/og-image.png" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    
+    <!-- Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#667eea" />
+    <meta name="msapplication-TileColor" content="#667eea" />
+    
+    <!-- Preconnect to API -->
+    <link rel="preconnect" href="http://localhost:3001" />
+    
+    <!-- Inline Critical CSS for Faster Initial Render -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+          'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: #f5f5f5;
+      }
+      
+      #root {
+        min-height: 100vh;
+      }
+      
+      /* Loading Screen */
+      .loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        color: white;
+      }
+      
+      .loading-screen h1 {
+        font-size: 48px;
+        margin-bottom: 20px;
+        animation: fadeIn 0.5s;
+      }
+      
+      .loading-screen p {
+        font-size: 18px;
+        opacity: 0.9;
+        animation: fadeIn 0.5s 0.2s backwards;
+      }
+      
+      .spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin-top: 30px;
+      }
+      
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      /* Hide loading screen once React loads */
+      #root:not(:empty) ~ .loading-screen {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- React Root -->
+    <div id="root"></div>
+    
+    <!-- Loading Screen (shown while React loads) -->
+    <div class="loading-screen">
+      <h1>🤖 Conversa Clone</h1>
+      <p>AI-Powered Marketing Automation Platform</p>
+      <div class="spinner"></div>
+      <p style="margin-top: 20px; font-size: 14px; opacity: 0.7;">Loading application...</p>
+    </div>
+    
+    <!-- Vite Module Script -->
+    <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- No Script Fallback -->
+    <noscript>
+      <div style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        font-family: sans-serif;
+      ">
+        <h1 style="font-size: 36px; margin-bottom: 20px;">⚠️ JavaScript Required</h1>
+        <p style="font-size: 18px; max-width: 500px;">
+          Conversa Clone requires JavaScript to be enabled in your browser to function properly.
+        </p>
+        <p style="font-size: 14px; margin-top: 20px; opacity: 0.8;">
+          Please enable JavaScript and refresh the page.
+        </p>
+      </div>
+    </noscript>
+  </body>
+</html>

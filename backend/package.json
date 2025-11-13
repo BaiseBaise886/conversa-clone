@@ -1,0 +1,81 @@
+{
+  "name": "conversa-clone-backend",
+  "version": "1.0.0",
+  "description": "AI-Powered Marketing Automation Platform - Backend API",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "migrate": "node src/config/migrate.js",
+    "migrate:fresh": "npm run migrate",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop ecosystem.config.js",
+    "pm2:restart": "pm2 restart ecosystem.config.js",
+    "pm2:logs": "pm2 logs conversa-clone",
+    "pm2:monit": "pm2 monit"
+  },
+  "keywords": [
+    "whatsapp",
+    "automation",
+    "marketing",
+    "ai",
+    "chatbot",
+    "conversa",
+    "instagram",
+    "nodejs",
+    "express"
+  ],
+  "author": "BaiseBaise886",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BaiseBaise886/conversa-clone.git"
+  },
+  "bugs": {
+    "url": "https://github.com/BaiseBaise886/conversa-clone/issues"
+  },
+  "homepage": "https://github.com/BaiseBaise886/conversa-clone#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.17.1",
+    "bcrypt": "^5.1.1",
+    "bull": "^4.12.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "openai": "^4.24.1",
+    "pg": "^8.11.3",
+    "qrcode": "^1.5.3",
+    "redis": "^4.6.12",
+    "socket.io": "^4.7.2",
+    "whatsapp-web.js": "^1.23.0",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "nodemon": "^3.0.2",
+    "pm2": "^5.3.0"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ext": "js,json",
+    "ignore": [
+      "src/**/*.spec.js",
+      "node_modules"
+    ],
+    "delay": "2000"
+  }
+}
