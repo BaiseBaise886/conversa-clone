@@ -159,6 +159,13 @@ const Setup = ({ onSetupComplete }) => {
       setResults(prev => ({ ...prev, adminCreation: data }));
       
       if (data.success) {
+        // Store auth token and user data for auto-login
+        if (data.token) {
+          localStorage.setItem('token', data.token);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          localStorage.setItem('organization', JSON.stringify(data.organization));
+        }
+        
         // Get database stats
         await getDatabaseStats();
         setStep(5);
@@ -478,7 +485,7 @@ const Setup = ({ onSetupComplete }) => {
     <div>
       <h2 className="text-2xl font-bold mb-4">✅ Setup Complete!</h2>
       <p className="text-gray-600 mb-6">
-        Your Conversa Clone installation is ready. You can now log in with your admin credentials.
+        Your Conversa Clone installation is ready. Click below to access your dashboard!
       </p>
       
       <div className="bg-blue-50 border border-blue-200 rounded p-6 mb-6">
@@ -504,9 +511,9 @@ const Setup = ({ onSetupComplete }) => {
       
       <button
         onClick={onSetupComplete}
-        className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+        className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 font-semibold"
       >
-        Go to Login
+        🚀 Go to Dashboard
       </button>
     </div>
   );

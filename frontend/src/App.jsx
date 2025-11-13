@@ -80,6 +80,16 @@ function App() {
   const handleSetupComplete = () => {
     setNeedsSetup(false);
     setCheckingSetup(false);
+    // Auto-login after setup - setup stored the token already
+    const token = getToken();
+    if (token) {
+      setIsAuthenticated(true);
+      const userData = JSON.parse(localStorage.getItem('user') || '{}');
+      const orgData = JSON.parse(localStorage.getItem('organization') || '{}');
+      setUser(userData);
+      setOrganization(orgData);
+      connectWebSocket();
+    }
   };
 
   // Show loading while checking setup status
