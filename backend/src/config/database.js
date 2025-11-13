@@ -5,40 +5,73 @@ dotenv.config();
 
 const { Pool } = pg;
 
-export const pool = new Pool({
+// Database configuration with better defaults
+const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
-  port: process.env.DB_PORT || 5432,
+  port: parseInt(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME || 'conversa_clone',
   user: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
-});
+  connectionTimeoutMillis: 5000,
+};
 
-pool.on('connect', () => {
+// Create pool with configuration
+export const pool = new Pool(dbConfig);
+
+// Connection event handlers
+pool.on('connect', (client) => {
   console.log('✅ Database connection established');
 });
 
-pool.on('error', (err) => {
+pool.on('error', (err, client) => {
   console.error('❌ Unexpected database error:', err);
-  process.exit(-1);
+  console.log('\n💡 Database Troubleshooting Guide:');
+  console.log('1. Verify PostgreSQL is running:');
+  console.log('   sudo systemctl status postgresql');
+  console.log('   OR');
+  console.log('   brew services list (macOS)');
+  console.log('\n2. Check if database exists:');
+  console.log('   psql -U postgres -l');
+  console.log('\n3. Create database if missing:');
+  console.log('   psql -U postgres -c "CREATE DATABASE conversa_clone;"');
+  console.log('\n4. Verify credentials in backend/.env file');
+  console.log('\n5. Run migrations:');
+  console.log('   cd backend && npm run migrate\n');
 });
 
-// Test connection
-pool.query('SELECT NOW()', (err, res) => {
-  if (err) {
-    console.error('❌ Database connection failed:', err);
-    console.log('\n💡 Troubleshooting:');
-    console.log('1. Check if PostgreSQL is running: sudo systemctl status postgresql');
-    console.log('2. Verify database exists: psql -U postgres -l');
-    console.log('3. Check credentials in .env file');
-    console.log('4. Run setup: ./setup.sh\n');
-  } else {
-    console.log('✅ Database connected successfully at:', res.rows[0].now);
+// Test connection with retry logic
+async function testConnection(retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await pool.query('SELECT NOW()');
+      console.log('✅ Database connected successfully at:', res.rows[0].now);
+      console.log(`📊 Database: ${dbConfig.database} on ${dbConfig.host}:${dbConfig.port}`);
+      return true;
+    } catch (err) {
+      console.error(`❌ Database connection attempt ${i + 1}/${retries} failed:`, err.message);
+      
+      if (i === retries - 1) {
+        console.log('\n💡 Quick Fix:');
+        console.log('1. Ensure PostgreSQL is installed and running');
+        console.log('2. Create the database: createdb conversa_clone');
+        console.log('3. Update backend/.env with correct credentials');
+        console.log('4. Run: cd backend && npm run migrate\n');
+        return false;
+      }
+      
+      // Wait before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
   }
-});
+  return false;
+}
 
+// Run connection test
+testConnection();
+
+// Query helper function
 export const query = (text, params) => pool.query(text, params);
 
 export default pool;
