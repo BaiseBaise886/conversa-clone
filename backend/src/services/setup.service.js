@@ -58,6 +58,14 @@ class SetupService {
 
       const dbName = config.database || 'conversa_clone';
       
+      // Validate database name to prevent SQL injection (alphanumeric, underscore, hyphen only)
+      if (!/^[a-zA-Z0-9_-]+$/.test(dbName)) {
+        return {
+          success: false,
+          message: 'Invalid database name. Only alphanumeric characters, underscores, and hyphens are allowed.'
+        };
+      }
+      
       // Check if database exists
       const [databases] = await connection.query(
         'SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?',
@@ -72,7 +80,7 @@ class SetupService {
         };
       }
 
-      // Create database
+      // Create database (safe because we validated the name above)
       await connection.query(`CREATE DATABASE \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
       
       return { 
