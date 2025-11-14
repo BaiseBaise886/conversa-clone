@@ -36,3 +36,22 @@ return [
     ],
 
 ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp Web API Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Configure the WhatsApp Web API service. This can point to:
+    | 1. A separate Node.js service running whatsapp-web.js
+    | 2. A compatible WhatsApp Web API service
+    | 3. Leave as default for standalone QR code generation
+    |
+    */
+
+    'whatsapp' => [
+        'api_url' => env('WHATSAPP_API_URL', 'http://localhost:3000'),
+        'api_key' => env('WHATSAPP_API_KEY'),
+        'session_path' => env('WHATSAPP_SESSION_PATH', storage_path('app/whatsapp-sessions')),
+    ],
+

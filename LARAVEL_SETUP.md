@@ -408,3 +408,96 @@ MIT License - Same as the original project
 - Original Conversa Clone by BaiseBaise886
 - Converted to Laravel/PHP version
 - Built with Laravel 11, PostgreSQL, and Redis
+
+## WhatsApp Integration
+
+The Laravel application integrates with WhatsApp Web using a compatible API. There are two options:
+
+### Option 1: WhatsApp Bridge Service (Recommended)
+
+We provide a lightweight Node.js bridge service that uses `whatsapp-web.js` - the same library as the original Node.js version.
+
+**Setup:**
+
+```bash
+# Navigate to bridge directory
+cd laravel-app/whatsapp-bridge
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+nano .env
+
+# Start the bridge
+npm start
+```
+
+Configure Laravel's `.env`:
+```env
+WHATSAPP_API_URL=http://localhost:3000
+WHATSAPP_API_KEY=your_secure_api_key_here
+```
+
+**Features:**
+- Full whatsapp-web.js compatibility
+- QR code generation
+- Send/receive messages
+- Media support
+- Session persistence
+
+See `laravel-app/whatsapp-bridge/README.md` for detailed documentation.
+
+### Option 2: Third-Party WhatsApp API
+
+Use any WhatsApp API service (like WhatsApp Business API, Twilio, or others) by updating the `WhatsAppService.php` to integrate with your chosen provider.
+
+### How It Works
+
+1. **Laravel Application** - Main PHP application handling all business logic
+2. **WhatsApp Bridge** (optional) - Small Node.js service for whatsapp-web.js integration
+3. **Communication** - Bridge sends webhooks to Laravel for incoming messages
+
+```
+[Laravel App :8000] <--HTTP API--> [WhatsApp Bridge :3000] <--> [WhatsApp Web]
+```
+
+### API Usage Example
+
+```php
+use App\Services\WhatsAppService;
+
+// Initialize channel (generates QR code)
+$whatsapp = app(WhatsAppService::class);
+$result = $whatsapp->initializeChannel($channel);
+
+// Send message
+$whatsapp->sendMessage($contact, "Hello from Laravel!");
+
+// Send media
+$whatsapp->sendMedia($contact, 'path/to/image.jpg', 'image', 'Check this out');
+```
+
+### Deployment
+
+For production, run the WhatsApp bridge as a separate service:
+
+```bash
+# Using PM2
+cd laravel-app/whatsapp-bridge
+pm2 start server.js --name whatsapp-bridge
+pm2 save
+```
+
+Or use Docker:
+
+```dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY whatsapp-bridge/package*.json ./
+RUN npm install --production
+COPY whatsapp-bridge/ .
+CMD ["node", "server.js"]
+```
+
