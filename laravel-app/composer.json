@@ -10,7 +10,7 @@
         "endroid/qr-code": "^6.0",
         "guzzlehttp/guzzle": "^7.10",
         "laravel/framework": "^11.31",
-        "laravel/sanctum": "^4.2",
+        "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.9",
         "openai-php/laravel": "^0.18.0",
         "predis/predis": "^3.2"
