@@ -68,3 +68,9 @@ uploads/*
 # Temp files
 tmp/
 temp/
+# Laravel
+laravel-app/.env
+laravel-app/vendor/
+laravel-app/storage/*.key
+laravel-app/storage/logs/
+laravel-app/bootstrap/cache/*
